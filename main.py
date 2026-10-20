@@ -1,38 +1,91 @@
-from enum import Enum
-from fastapi import FastAPI
-from pydantic import BaseModel
+from contextlib import asynccontextmanager
+from fastapi import Depends, FastAPI, status
+from sqlalchemy.orm import Session
 
-class ModelName(str, Enum):
-    alexnet = "alexnet"
-    resnet = "resnet"
-    lenet = "lenet"
+import models
+import schemas
+from database import engine, get_db
 
-app = FastAPI()
 
-@app.get("/models/{model_name}")
-async def get_model(model_name: ModelName):
-    if model_name is ModelName.alexnet:
-        return {"model_name" : model_name, "message" : "Deep Learning FTW! "}
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Tente de créer les tables au démarrage si la base PostgreSQL est accessible
+    try:
+        models.Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"Attention: Impossible de se connecter à la base de données au démarrage: {e}")
+    yield
 
-    if model_name.value == "lenet":
-        return {"model_name" : model_name, "message" : "LeCNN all the images"}
 
-    return {"model_name" : model_name, "message" : "Have some residuals"}
+app = FastAPI(title="Todo API", lifespan=lifespan)
 
-class Item(BaseModel):
-    name: str
-    description: str | None = None
-    price: float
-    tax: float | None = None
 
-@app.post("/items/")
-async def create_item(item: Item):
-    item_dict = item.model_dump()
-    if item.tax is not None:
-        price_with_tax = item.price + item.tax
-        item_dict.update({"price" : price_with_tax})
-    return item_dict
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
-@app.put("/items/{item_id}")
-async def update_item(item_id: int, item: Item):
-    return {"item_id": item_id, **item.model_dump()}
+
+@app.post(
+    "/tasks/",
+    response_model=schemas.TaskResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Ajouter une tâche",
+)
+def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
+    db_task = models.Task(
+        title=task.title,
+        description=task.description,
+        completed=task.completed,
+    )
+    db.add(db_task)
+    db.commit()
+    db.refresh(db_task)
+    return db_task
+
+
+@app.get(
+    "/tasks/",
+    response_model=list[schemas.TaskResponse],
+    summary="Lire les tâches",
+)
+def get_tasks(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+):
+    tasks = db.query(models.Task).offset(skip).limit(limit).all()
+    return tasks
+
+
+
+@app.post(
+    "/tasks/",
+    response_model=schemas.TaskResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Ajouter une tâche",
+)
+def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
+    db_task = models.Task(
+        title=task.title,
+        description=task.description,
+        completed=task.completed,
+    )
+    db.add(db_task)
+    db.commit()
+    db.refresh(db_task)
+    return db_task
+
+
+@app.get(
+    "/tasks/",
+    response_model=list[schemas.TaskResponse],
+    summary="Lire les tâches",
+)
+def get_tasks(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+):
+    tasks = db.query(models.Task).offset(skip).limit(limit).all()
+    return tasks
+    return {"status": "ok"}

@@ -1,2 +1,15 @@
+[project]
+name = "learn-fastapi"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]",
+    "psycopg2-binary>=2.9.13",
+    "psycopg[binary]>=3.3.6",
+    "sqlalchemy>=2.1.5",
+]
+
 [tool.fastapi]
 entrypoint = "main:app"
